@@ -44,7 +44,7 @@ class EARLIEST(nn.Module):
         self.CELL_TYPE = CELL_TYPE
         self.HIDDEN_DIM = HIDDEN_DIM
         self.DF = DF
-        self.LAMBDA = LAMBDA
+        self.LAMBDA = torch.tensor([LAMBDA], requires_grad=False)
         self.N_LAYERS = N_LAYERS
         self._epsilon = 1.0
         self._rewards = 0
@@ -111,7 +111,7 @@ class EARLIEST(nn.Module):
         R = r.unsqueeze(1).repeat(1, int(self.halting_point.squeeze()))
 
         # --- discount factor ---
-        discount = [self.df**i for i in range(self.halting_point)]
+        discount = [self.DF**i for i in range(int(self.halting_point.item()))]
         discount = np.array(discount).reshape(1, -1)
         discount = np.flip(discount, 1)
         discount = torch.from_numpy(discount.copy()).float().view(1, -1)
@@ -123,14 +123,22 @@ class EARLIEST(nn.Module):
 
         # --- compute losses ---
         self.loss_b = F.mse_loss(self.baselines, R) # Baseline should approximate mean reward
-        self.loss_c = F.cross_entropy(logits, labels) # Make accurate predictions
+        self.loss_c = F.cross_entropy(y_hat, labels) # Make accurate predictions
         self.loss_r = torch.sum(-self.log_pi*adjusted_reward, dim=1) # Controller should lead to correct predictions from the discriminator
-        self.lam = torch.tensor([self.lam], requires_grad=False)
         self.time_penalty = torch.sum(self.halt_probs, dim=1) # Penalize late predictions
 
         # --- collect all loss terms ---
         loss = (self.loss_r \
                 + self.loss_c \
                 + self.loss_b \
-                + self.lam*self.time_penalty)
+                + self.LAMBDA*self.time_penalty)
         return loss
+
+if __name__ == "__main__":
+    d = torch.rand((5, 1, 1))
+    m = EARLIEST(1, 2)
+    y_hat = m(d)
+    labels = torch.tensor([0], dtype=torch.long)
+    loss = m.applyLoss(y_hat, labels)
+    loss.backward()
+    print(loss)

@@ -12,5 +12,13 @@ N_FEATURES = 5 # Number of variables in your data (if we have clinical time seri
 N_CLASSES = 3 # Number of classes
 HIDDEN_DIM = 50 # Hidden dimension of the RNN
 CELL_TYPE = "LSTM" # Use an LSTM as the Recurrent Memory Cell.
+d = torch.rand((5, 1, N_FEATURES)) # A simple synthetic time series.
+labels = torch.tensor([0], dtype=torch.long) # A simple synthetic label.
 m = EARLIEST(N_FEATURES, N_CLASSES, HIDDEN_DIM, CELL_TYPE)
+# Now, you can use m for inference
+y_hat = m(d)
+
+# To compute the loss, simply run
+loss = m.applyLoss(y_hat, labels)
+loss.backward() # Compute all gradients
 ```
