@@ -133,12 +133,3 @@ class EARLIEST(nn.Module):
                 + self.loss_b \
                 + self.LAMBDA*self.time_penalty)
         return loss
-
-if __name__ == "__main__":
-    d = torch.rand((5, 1, 1))
-    m = EARLIEST(1, 2)
-    y_hat = m(d)
-    labels = torch.tensor([0], dtype=torch.long)
-    loss = m.applyLoss(y_hat, labels)
-    loss.backward()
-    print(loss)
