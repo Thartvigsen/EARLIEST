@@ -2,4 +2,9 @@
 Source code for "Adaptively-Halting Policy Network for Early Classification", published at KDD'19.
 Will be updated prior to KDD'19 conference.
 
-**Update**: Adding this code by August 8th - Tom (08.05)
+**Update**: The available code is just the model right now, I am currently putting together a full training example with a detailed description of all pieces of the optimization process.
+
+Current use:
+```python
+import numpy as np
+```
