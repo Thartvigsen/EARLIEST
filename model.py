@@ -35,7 +35,7 @@ class EARLIEST(nn.Module):
 
     """
     def __init__(self, N_FEATURES=1, N_CLASSES=2, HIDDEN_DIM=50, CELL_TYPE="LSTM",
-                 DF=1., LAMBDA=1.0, N_LAYERS=1):
+                 N_LAYERS=1, DF=1., LAMBDA=1.0):
         super(EARLIEST, self).__init__()
 
         # --- Hyperparameters ---
