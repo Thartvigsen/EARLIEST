@@ -32,4 +32,4 @@ You can simply run the file:
 ```bash
 python univariate_example.py
 ```
-**Requirements**: PyTorch 1.0+ and NumPy.
+**Requirements**: PyTorch 1.0+, NumPy, and Scikit-Learn.
