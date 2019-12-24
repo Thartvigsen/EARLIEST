@@ -33,3 +33,15 @@ You can simply run the file:
 python univariate_example.py
 ```
 **Requirements**: PyTorch 1.0+, NumPy, and Scikit-Learn.
+
+If you find this code helpful, feel free to cite our paper:
+```
+@inproceedings{hartvigsen2019adaptive,
+  title={Adaptive-Halting Policty Network for Early Classification},
+  author={Hartvigsen, Thomas and Sen, Cansu and Kong, Xiangnan and Rundensteiner, Elke},
+  booktitle={Proceedings of the 25th ACM SIGKDD international conference on Knowledge discovery and data mining},
+  pages={101--110},
+  year={2019},
+  organization={ACM}
+}
+```
