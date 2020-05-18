@@ -19,11 +19,12 @@ m = EARLIEST(N_FEATURES, N_CLASSES, HIDDEN_DIM, CELL_TYPE) # Initializing the mo
 
 # --- inference ---
 # Now we can use m for inference
-y_hat = m(d)
+logits, halting_points = m(d)
+_, predictions = torch.max(torch.softmax(logits, 1), 1)
 
 # --- computing loss and gradients ---
 # Computing the loss is quite simple:
-loss = m.applyLoss(y_hat, labels)
+loss = m.applyLoss(logits, labels)
 loss.backward() # Compute all gradients
 ```
 
