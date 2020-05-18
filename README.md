@@ -34,6 +34,13 @@ python univariate_example.py
 ```
 **Requirements**: PyTorch 1.0+, NumPy, and Scikit-Learn.
 
+In practice, it may prove helpful to:
+1. Alter the epsilon values over time -- you can tune this to change how much you want the model to randomly wait/halt: Early on in training, waiting helps the classifier cover the discrimination space better.
+2. Apply the Discriminator and let the Controller look at the predictions made
+   prior to making its decision. This is a different model but would likely lead
+   to better classification!
+If you try one of these, please let Tom know how it goes!
+
 If you find this code helpful, feel free to cite our paper:
 ```
 @inproceedings{hartvigsen2019adaptive,
@@ -45,4 +52,3 @@ If you find this code helpful, feel free to cite our paper:
   organization={ACM}
 }
 ```
-

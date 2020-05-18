@@ -1,9 +1,7 @@
 import torch
-import torch.nn as nn
+from torch import nn
+from modules import Controller, BaselineNetwork
 import numpy as np
-import torch.nn.functional as F
-from modules import BaseRNN, Controller
-from modules import BaselineNetwork, Discriminator
 
 class EARLIEST(nn.Module):
     """Code for the paper titled: Adaptive-Halting Policy Network for Early Classification
@@ -17,117 +15,133 @@ class EARLIEST(nn.Module):
 
     Parameters
     ----------
-    N_FEATURES : int
+    ninp : int
         number of features in the input data.
-    N_CLASSES : int
+    nclasses : int
         number of classes in the input labels.
-    HIDDEN_DIM : int
+    nhid : int
         number of dimensions in the RNN's hidden states.
-    CELL_TYPE : str
+    rnn_type : str
         which RNN memory cell to use: {LSTM, GRU, RNN}.
         (if defining your own, leave this alone)
-    DF : float32
-        discount factor for optimizing the Controller.
-    LAMBDA : float32
+    lam : float32
         earliness weight -- emphasis on earliness.
-    N_LAYERS : int
+    nlayers : int
         number of layers in the RNN.
 
     """
-    def __init__(self, N_FEATURES=1, N_CLASSES=2, HIDDEN_DIM=50, CELL_TYPE="LSTM",
-                 N_LAYERS=1, DF=1., LAMBDA=1.0):
+    def __init__(self, ninp=1, nclasses=1, nhid=50, rnn_type="LSTM",
+                 nlayers=1, lam=0.0):
         super(EARLIEST, self).__init__()
 
         # --- Hyperparameters ---
-        self.CELL_TYPE = CELL_TYPE
-        self.HIDDEN_DIM = HIDDEN_DIM
-        self.DF = DF
-        self.LAMBDA = torch.tensor([LAMBDA], requires_grad=False)
-        self.N_LAYERS = N_LAYERS
-        self._epsilon = 1.0
-        self._rewards = 0
+        self.ninp = ninp
+        self.rnn_type = rnn_type
+        self.nhid = nhid
+        self.nlayers = nlayers
+        self.lam = lam
+        self.nclasses = nclasses
 
         # --- Sub-networks ---
-        self.BaseRNN = BaseRNN(N_FEATURES,
-                               HIDDEN_DIM,
-                               CELL_TYPE)
-        self.Controller = Controller(HIDDEN_DIM+1, 1) # Add +1 for timestep input
-        self.BaselineNetwork = BaselineNetwork(HIDDEN_DIM, 1)
-        self.Discriminator = Discriminator(HIDDEN_DIM, N_CLASSES)
-
-    def initHidden(self, batch_size):
-        """Initialize hidden states"""
-        if self.CELL_TYPE == "LSTM":
-            h = (torch.zeros(self.N_LAYERS,
-                             batch_size,
-                             self.HIDDEN_DIM),
-                 torch.zeros(self.N_LAYERS,
-                             batch_size,
-                             self.HIDDEN_DIM))
+        self.Controller = Controller(nhid+1, 1)
+        self.BaselineNetwork = BaselineNetwork(nhid+1, 1)
+        if rnn_type == "LSTM":
+            self.RNN = torch.nn.LSTM(ninp, nhid)
         else:
-            h = torch.zeros(self.N_LAYERS,
-                            batch_size,
-                            self.HIDDEN_DIM)
-        return h
+            self.RNN = torch.nn.GRU(ninp, nhid)
+        self.out = torch.nn.Linear(nhid, nclasses)
 
-    def forward(self, X):
-        baselines = []
-        log_pi = []
+    def initHidden(self, bsz):
+        """Initialize hidden states"""
+        if self.rnn_type == "LSTM":
+            return (torch.zeros(self.nlayers, bsz, self.nhid),
+                    torch.zeros(self.nlayers, bsz, self.nhid))
+        else:
+            return torch.zeros(self.nlayers, bsz, self.nhid)
+
+    def forward(self, X, epoch=0, test=False):
+        """Compute halting points and predictions"""
+        if test: # Model chooses for itself during testing
+            self.Controller._epsilon = 0.0
+        else:
+            self.Controller._epsilon = self._epsilon # explore/exploit trade-off
+        T, B, V = X.shape
+        baselines = [] # Predicted baselines
+        actions = [] # Which classes to halt at each step
+        log_pi = [] # Log probability of chosen actions
         halt_probs = []
-        attention = []
-        hidden_states = []
-        hidden = self.initHidden(X.shape[1]) # Initialize hidden states - input is batch size
-        for t in range(len(X)):
-            x_t = X[t].unsqueeze(0) # add time dim back in
-            S_t, hidden = self.BaseRNN(x_t, hidden) # Run sequence model
-            S_t = S_t.squeeze(0) # remove time dim
-            t = torch.tensor([t], dtype=torch.float).view(1, 1) # collect timestep
-            hidden_states.append(S_t)
-            S_t_with_t = torch.cat((S_t, t), dim=1) # Add timestep as input to controller
-            a_t, p_t, w_t = self.Controller(S_t_with_t, self._epsilon) # Compute halting-probability and sample an action
-            b_t = self.BaselineNetwork(S_t) # Compute the baseline
-            baselines.append(b_t)
+        halt_points = -torch.ones((B, self.nclasses))
+        hidden = self.initHidden(X.shape[1])
+        predictions = torch.zeros((B, self.nclasses), requires_grad=True)
+        all_preds = []
+
+        # --- for each timestep, select a set of actions ---
+        for t in range(T):
+            # run Base RNN on new data at step t
+            RNN_in = X[t].unsqueeze(0)
+            output, hidden = self.RNN(RNN_in, hidden)
+
+            # predict logits for all elements in the batch
+            logits = self.out(output.squeeze())
+
+            # compute halting probability and sample an action
+            time = torch.tensor([t], dtype=torch.float, requires_grad=False).view(1, 1, 1).repeat(1, B, 1)
+            c_in = torch.cat((output, time), dim=2).detach()
+            a_t, p_t, w_t = self.Controller(c_in)
+
+            # If a_t == 1 and this class hasn't been halted, save its logits
+            predictions = torch.where((a_t == 1) & (predictions == 0), logits, predictions)
+
+            # If a_t == 1 and this class hasn't been halted, save the time
+            halt_points = torch.where((halt_points == -1) & (a_t == 1), time.squeeze(0), halt_points)
+
+            # compute baseline
+            b_t = self.BaselineNetwork(torch.cat((output, time), dim=2).detach())
+
+            actions.append(a_t.squeeze())
+            baselines.append(b_t.squeeze())
             log_pi.append(p_t)
             halt_probs.append(w_t)
-            if a_t == 1:
+            if (halt_points == -1).sum() == 0:  # If no negative values, every class has been halted
                 break
 
-        y_hat = self.Discriminator(S_t) # Classify the time series
-        self.baselines = torch.stack(baselines).transpose(1, 0)
-        self.baselines = self.baselines.view(1, -1)
-        self.log_pi = torch.stack(log_pi).transpose(1, 0).squeeze(2)
-        self.halt_probs = torch.stack(halt_probs).transpose(1, 0)
-        self.halting_point = t+1 # Adjust timestep indexing just for plotting
-        self.locations = self.halting_point
-        return y_hat
-               
-    def applyLoss(self, y_hat, labels):
+        # If one element in the batch has not been halting, use its final prediction
+        logits = torch.where(predictions == 0.0, logits, predictions).squeeze()
+        halt_points = torch.where(halt_points == -1, time, halt_points).squeeze(0)
+        self.locations = np.array(halt_points + 1)
+        self.baselines = torch.stack(baselines).squeeze(1).transpose(0, 1)
+        self.log_pi = torch.stack(log_pi).squeeze(1).squeeze(2).transpose(0, 1)
+        self.halt_probs = torch.stack(halt_probs).transpose(0, 1)
+        self.actions = torch.stack(actions).transpose(0, 1)
+
+        # --- Compute mask for where actions are updated ---
+        # this lets us batch the algorithm and just set the rewards to 0
+        # when the method has already halted one instances but not another.
+        self.grad_mask = torch.zeros_like(self.actions)
+        for b in range(B):
+            self.grad_mask[b, :(1 + halt_points[b, 0]).long()] = 1
+        return logits.squeeze(), (1+halt_points).mean()/(T+1)
+
+    def computeLoss(self, logits, y):
         # --- compute reward ---
-        _, predicted = torch.max(y_hat, 1)
-        r = (predicted.float().detach() == labels.float()).float()
-        r = r*2 - 1
-        R = r.unsqueeze(1).repeat(1, int(self.halting_point.squeeze()))
+        _, y_hat = torch.max(torch.softmax(logits, dim=1), dim=1)
+        self.r = (2*(y_hat.float().round() == y.float()).float()-1).detach().unsqueeze(1)
+        self.R = self.r * self.grad_mask
 
-        # --- discount factor ---
-        discount = [self.DF**i for i in range(int(self.halting_point.item()))]
-        discount = np.array(discount).reshape(1, -1)
-        discount = np.flip(discount, 1)
-        discount = torch.from_numpy(discount.copy()).float().view(1, -1)
-        R = R * discount
-        self._rewards += torch.sum(R) # Collect the sum of rewards for plotting
+        # --- rescale reward with baseline ---
+        b = self.grad_mask * self.baselines
+        self.adjusted_reward = self.R - b.detach()
 
-        # --- subtract baseline from reward ---
-        adjusted_reward = R - self.baselines.detach()
+        # If you want a discount factor, that goes here!
+        # It is used in the original implementation.
 
         # --- compute losses ---
-        self.loss_b = F.mse_loss(self.baselines, R) # Baseline should approximate mean reward
-        self.loss_c = F.cross_entropy(y_hat, labels) # Make accurate predictions
-        self.loss_r = torch.sum(-self.log_pi*adjusted_reward, dim=1) # Controller should lead to correct predictions from the discriminator
-        self.time_penalty = torch.sum(self.halt_probs, dim=1) # Penalize late predictions
-
-        # --- collect all loss terms ---
-        loss = (self.loss_r \
-                + self.loss_c \
-                + self.loss_b \
-                + self.LAMBDA*self.time_penalty)
+        MSE = torch.nn.MSELoss()
+        CE = torch.nn.CrossEntropyLoss()
+        self.loss_b = MSE(b, self.R) # Baseline should approximate mean reward
+        self.loss_r = (-self.log_pi*self.adjusted_reward).sum()/self.log_pi.shape[1] # RL loss
+        self.loss_c = CE(logits, y) # Classification loss
+        self.wait_penalty = self.halt_probs.sum() # Penalize late predictions
+        self.lam = torch.tensor([self.lam], dtype=torch.float, requires_grad=False)
+        loss = self.loss_r + self.loss_b + self.loss_c + self.lam*(self.wait_penalty)
         return loss

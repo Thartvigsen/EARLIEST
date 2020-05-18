@@ -48,4 +48,3 @@ class SyntheticTimeSeries(Dataset):
         signal_locs = torch.tensor(np.asarray(self.signal_locs),
                                    dtype=torch.float)
         return data, labels, signal_locs
-

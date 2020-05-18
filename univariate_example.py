@@ -19,12 +19,12 @@ def exponentialDecay(N):
 HIDDEN_DIMENSION = 10
 N_FEATURES = 1
 N_LAYERS = 1
-LEARNING_RATE = 1e-3
-BATCH_SIZE = 1
+LEARNING_RATE = 1e-2
+BATCH_SIZE = 3
 CELL_TYPE = "LSTM"
-N_EPOCHS = 20
-SEQ_LENGTH = 10
-LAMBDA = 1e-02
+N_EPOCHS = 10
+SEQ_LENGTH = 5
+LAMBDA = 0.0
 exponentials = exponentialDecay(N_EPOCHS)
 
 # --- dataset ---
@@ -42,7 +42,8 @@ test_loader = torch.utils.data.DataLoader(dataset=data,
                                           drop_last=True)
 
 # --- initialize the model and the optimizer ---
-model = EARLIEST(N_FEATURES, N_CLASSES, HIDDEN_DIMENSION, CELL_TYPE, N_LAYERS, LAMBDA=LAMBDA)
+model = EARLIEST(ninp=N_FEATURES, nclasses=N_CLASSES, nhid=HIDDEN_DIMENSION,
+                 rnn_type=CELL_TYPE, nlayers=N_LAYERS, lam=LAMBDA)
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
 
@@ -59,24 +60,28 @@ for epoch in range(N_EPOCHS):
     for i, (X, y) in enumerate(train_loader):
         X = torch.transpose(X, 0, 1)
         # --- Forward pass ---
-        predictions = model(X)
+        logits, halting_points = model(X, epoch)
+        _, predictions = torch.max(torch.softmax(logits, dim=1), dim=1)
+
+        training_locations.append(halting_points)
+        training_predictions.append(predictions)
 
         # --- Compute gradients and update weights ---
         optimizer.zero_grad()
-        loss = model.applyLoss(predictions, y)
+        loss = model.computeLoss(logits, y)
         loss.backward()
         loss_sum += loss.item()
         optimizer.step()
-        #scheduler.step()
 
-        # --- Collect prediction locations ---
-        for j in range(len(y)):
-            training_locations.append(model.locations[j])
-            training_predictions.append(predictions[j])
         if (i+1) % 10 == 0:
-            print ('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, N_EPOCHS, i+1, len(train_loader), loss.item()))
+            print ('Epoch [{}/{}], Batch [{}/{}], Loss: {:.4f}'.format(epoch+1, N_EPOCHS, i+1, len(train_loader), loss.item()))
     training_loss.append(np.round(loss_sum/len(train_loader), 3))
+    scheduler.step()
 training_locations = torch.stack(training_locations).numpy()
+
+import matplotlib.pyplot as plt
+plt.plot(training_loss)
+plt.show()
 
 # --- testing ---
 testing_loss = []
@@ -86,17 +91,22 @@ testing_locations = []
 loss_sum = 0
 for i, (X, y) in enumerate(test_loader):
     X = torch.transpose(X, 0, 1)
-    predictions = model(X)
-    for j in range(len(y)):
-        testing_locations.append(model.locations[j])
-        testing_predictions.append(predictions[j])
-        testing_labels.append(y[j])
-    loss = model.applyLoss(predictions, y)
-    loss.backward()
+    logits, halting_points = model(X, test=True)
+    _, predictions = torch.max(torch.softmax(logits, dim=1), dim=1)
+
+    testing_locations.append(halting_points)
+    testing_predictions.append(predictions)
+    testing_labels.append(y)
+
+    loss = model.computeLoss(logits, y)
     loss_sum += loss.item()
     testing_loss.append(np.round(loss_sum/len(test_loader), 3))
-_, testing_predictions = torch.max(torch.stack(testing_predictions).detach(), 1)
-testing_predictions = np.array(testing_predictions)
 
-print("Accuracy: {}".format(accuracy_score(testing_labels, testing_predictions)))
-print("Mean proportion used: {}%".format(np.round(np.mean(testing_locations)/SEQ_LENGTH, 3)))
+testing_predictions = torch.stack(testing_predictions).numpy().reshape(-1, 1)
+testing_labels = torch.stack(testing_labels).numpy().reshape(-1, 1)
+testing_locations = torch.stack(testing_locations).numpy().reshape(-1, 1)
+#_, testing_predictions = torch.max(torch.stack(testing_predictions).detach(), 1)
+#testing_predictions = np.array(testing_predictions)
+
+print("Accuracy: {}".format(np.round(accuracy_score(testing_labels, testing_predictions), 3)))
+print("Mean proportion used: {}%".format(np.round(100.*np.mean(testing_locations), 3)))
