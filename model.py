@@ -111,7 +111,7 @@ class EARLIEST(nn.Module):
         self.locations = np.array(halt_points + 1)
         self.baselines = torch.stack(baselines).squeeze(1).transpose(0, 1)
         self.log_pi = torch.stack(log_pi).squeeze(1).squeeze(2).transpose(0, 1)
-        self.halt_probs = torch.stack(halt_probs).transpose(0, 1)
+        self.halt_probs = torch.stack(halt_probs).transpose(0, 1).squeeze(2)
         self.actions = torch.stack(actions).transpose(0, 1)
 
         # --- Compute mask for where actions are updated ---
@@ -141,7 +141,9 @@ class EARLIEST(nn.Module):
         self.loss_b = MSE(b, self.R) # Baseline should approximate mean reward
         self.loss_r = (-self.log_pi*self.adjusted_reward).sum()/self.log_pi.shape[1] # RL loss
         self.loss_c = CE(logits, y) # Classification loss
-        self.wait_penalty = self.halt_probs.sum() # Penalize late predictions
+        self.wait_penalty = self.halt_probs.sum(1).mean() # Penalize late predictions
         self.lam = torch.tensor([self.lam], dtype=torch.float, requires_grad=False)
         loss = self.loss_r + self.loss_b + self.loss_c + self.lam*(self.wait_penalty)
+        # It can help to add a larger weight to self.loss_c so early training
+        # focuses on classification: ... + 10*self.loss_c + ...
         return loss
