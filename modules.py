@@ -15,43 +15,25 @@ class BaselineNetwork(nn.Module):
 
         # --- Mappings ---
         self.fc = nn.Linear(input_size, output_size)
-        self.relu = nn.ReLU()
 
-    def forward(self, h_t):
-        b_t = self.fc(h_t.detach())
-        #         b_t = torch.relu(z_t)
-        return b_t
+    def forward(self, x):
+        b = self.fc(x.detach())
+        return b
 
 class Controller(nn.Module):
     """
     A network that chooses whether or not enough information
     has been seen to predict a label of a time series.
     """
-    def __init__(self, INPUT_DIM, N_CLASSES):
+    def __init__(self, ninp, nout):
         super(Controller, self).__init__()
 
-        # --- Hyperparameters ---
-        self.ADDITIVE = False  # Only increase halting probs? Or increase/decrease?
-
         # --- Mappings ---
-        self.fc = nn.Linear(INPUT_DIM, N_CLASSES)  # Optimized w.r.t. reward
-        self.boost = nn.Linear(N_CLASSES, N_CLASSES)
+        self.fc = nn.Linear(ninp, nout)  # Optimized w.r.t. reward
 
-        # --- Nonlinearities ---
-        self.tanh = nn.Tanh()
-
-    def forward(self, x, eps=0.):
-        probs = self.fc(x)
-
-        # --- tie labels together according to predicted likelihoods ---
-        #         if self.ADDITIVE:
-        #             probs = torch.relu(self.boost(probs)) + probs # Increase halting-probabilities depending on halting-probabilities
-        #         else:
-        #             probs = torch.tanh(self.boost(probs)) + probs # Change halting-probabilities depending on other likelihoods
-        #         probs = torch.sigmoid(self.fc(hidden_locked)) # Compute halting-probability
-
-        probs = torch.sigmoid(probs)  # Rescale back to probabilistic space
-        probs = (1-self._epsilon)*probs + self._epsilon*torch.FloatTensor([0.05])  # Explore/exploit (can't be 0)
+    def forward(self, x):
+        probs = torch.sigmoid(self.fc(x))
+        probs = (1-self._epsilon)*probs + self._epsilon*torch.FloatTensor([0.05])  # Explore/exploit
         m = Bernoulli(probs=probs)
         action = m.sample() # sample an action
         log_pi = m.log_prob(action) # compute log probability of sampled action
