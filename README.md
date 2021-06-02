@@ -1,6 +1,5 @@
-# EARLIEST
-PyTorch code for "Adaptively-Halting Policy Network for Early Classification", published at KDD'19.
-EARLIEST is currently only available in PyTorch.
+# Adaptive-Halting Policy Network for Early Classification
+This repository is the official implementation of our paper (Adaptive-Halting Policy Network for Early Classification)[https://dl.acm.org/doi/10.1145/3394486.3403191?cid=99659453882].
 
 Introductory use:
 ```python
