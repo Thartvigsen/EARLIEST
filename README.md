@@ -1,5 +1,5 @@
 # Adaptive-Halting Policy Network for Early Classification
-This repository is the official implementation of our paper [Adaptive-Halting Policy Network for Early Classification](https://dl.acm.org/doi/10.1145/3394486.3403191?cid=99659453882).
+This repository is the official implementation of [Adaptive-Halting Policy Network for Early Classification](https://dl.acm.org/doi/10.1145/3394486.3403191?cid=99659453882), published at ACM SIGKDD 2019.
 
 Introductory use:
 ```python
