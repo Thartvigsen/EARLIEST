@@ -15,7 +15,7 @@ LAMBDA = 0.0 # Set lambda, the emphasis on earliness
 # --- defining data and model ---
 d = torch.rand((5, 1, N_FEATURES)) # A simple synthetic time series.
 labels = torch.tensor([0], dtype=torch.long) # A simple synthetic label.
-m = EARLIEST(N_FEATURES, N_CLASSES, HIDDEN_DIM, CELL_TYPE) # Initializing the model
+m = EARLIEST(N_FEATURES, N_CLASSES, HIDDEN_DIM, CELL_TYPE, lam=LAMBDA) # Initializing the model
 
 # --- inference ---
 # Now we can use m for inference
