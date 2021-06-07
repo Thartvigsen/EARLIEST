@@ -30,25 +30,28 @@ class EARLIEST(nn.Module):
         number of layers in the RNN.
 
     """
-    def __init__(self, ninp=1, nclasses=1, nhid=50, rnn_type="LSTM", nlayers=1, lam=0.0):
+    def __init__(self, ninp=1, nclasses=1, args): #nhid=50, rnn_type="LSTM", nlayers=1, lam=0.0):
         super(EARLIEST, self).__init__()
 
         # --- Hyperparameters ---
-        self.ninp = ninp
-        self.rnn_type = rnn_type
-        self.nhid = nhid
-        self.nlayers = nlayers
-        self.lam = lam
-        self.nclasses = nclasses
+        ninp = ninp
+        nclasses = nclasses
+
+        self.rnn_type = args.rnn_type
+        self.nhid = args.nhid
+        self.nlayers = args.nlayers
+        self.lam = args.lambda
 
         # --- Sub-networks ---
-        self.Controller = Controller(nhid+1, 1)
-        self.BaselineNetwork = BaselineNetwork(nhid+1, 1)
+        self.Controller = Controller(self.nhid+1, 1)
+        self.BaselineNetwork = BaselineNetwork(self.nhid+1, 1)
         if rnn_type == "LSTM":
-            self.RNN = torch.nn.LSTM(ninp, nhid)
+            self.RNN = torch.nn.LSTM(ninp, self.nhid)
+        elif rnn_type == "LSTM":
+            self.RNN = torch.nn.GRU(ninp, self.nhid)
         else:
-            self.RNN = torch.nn.GRU(ninp, nhid)
-        self.out = torch.nn.Linear(nhid, nclasses)
+            self.RNN = torch.nn.RNN(ninp, self.nhid)
+        self.out = torch.nn.Linear(self.nhid, nclasses)
 
     def initHidden(self, bsz):
         """Initialize hidden states"""
@@ -77,8 +80,8 @@ class EARLIEST(nn.Module):
         # --- for each timestep, select a set of actions ---
         for t in range(T):
             # run Base RNN on new data at step t
-            RNN_in = X[t].unsqueeze(0)
-            output, hidden = self.RNN(RNN_in, hidden)
+            x = X[t].unsqueeze(0) # Chop off current timesteps
+            output, hidden = self.RNN(x, hidden)
 
             # predict logits for all elements in the batch
             logits = self.out(output.squeeze())
@@ -130,9 +133,6 @@ class EARLIEST(nn.Module):
         # --- rescale reward with baseline ---
         b = self.grad_mask * self.baselines
         self.adjusted_reward = self.R - b.detach()
-
-        # If you want a discount factor, that goes here!
-        # It is used in the original implementation.
 
         # --- compute losses ---
         MSE = torch.nn.MSELoss()
