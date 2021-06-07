@@ -21,7 +21,7 @@ class EARLIEST(nn.Module):
         number of classes in the input labels.
     nhid : int
         number of dimensions in the RNN's hidden states.
-    rnn_type : str
+    rnn_cell : str
         which RNN memory cell to use: {LSTM, GRU, RNN}.
         (if defining your own, leave this alone)
     lam : float32
@@ -30,32 +30,32 @@ class EARLIEST(nn.Module):
         number of layers in the RNN.
 
     """
-    def __init__(self, ninp=1, nclasses=1, args): #nhid=50, rnn_type="LSTM", nlayers=1, lam=0.0):
+    def __init__(self, ninp, nclasses, args): #nhid=50, rnn_cell="LSTM", nlayers=1, lam=0.0):
         super(EARLIEST, self).__init__()
 
         # --- Hyperparameters ---
         ninp = ninp
-        nclasses = nclasses
+        self.nclasses = nclasses
 
-        self.rnn_type = args.rnn_type
+        self.rnn_cell = args.rnn_cell
         self.nhid = args.nhid
         self.nlayers = args.nlayers
-        self.lam = args.lambda
+        self.lam = args.lam
 
         # --- Sub-networks ---
         self.Controller = Controller(self.nhid+1, 1)
         self.BaselineNetwork = BaselineNetwork(self.nhid+1, 1)
-        if rnn_type == "LSTM":
+        if self.rnn_cell == "LSTM":
             self.RNN = torch.nn.LSTM(ninp, self.nhid)
-        elif rnn_type == "LSTM":
+        elif self.rnn_cell == "LSTM":
             self.RNN = torch.nn.GRU(ninp, self.nhid)
         else:
             self.RNN = torch.nn.RNN(ninp, self.nhid)
-        self.out = torch.nn.Linear(self.nhid, nclasses)
+        self.out = torch.nn.Linear(self.nhid, self.nclasses)
 
     def initHidden(self, bsz):
         """Initialize hidden states"""
-        if self.rnn_type == "LSTM":
+        if self.rnn_cell == "LSTM":
             return (torch.zeros(self.nlayers, bsz, self.nhid),
                     torch.zeros(self.nlayers, bsz, self.nhid))
         else:

@@ -7,9 +7,9 @@ class SyntheticTimeSeries(Dataset):
         self.nseries = args.nseries
         self.ntimesteps = args.ntimesteps
         self.data, self.labels, self.signal_locs = self.generateDataset()
-        self.train_ix, self.val_ix, self.test_ix = self.getSplitIndices()
-        self.nseries_FEATURES = 1
-        self.nseries_CLASSES = len(np.unique(self.labels))
+        #self.train_ix, self.val_ix, self.test_ix = self.getSplitIndices()
+        self.N_FEATURES = 1
+        self.N_CLASSES = len(np.unique(self.labels))
 
     def __len__(self):
         return len(self.data)

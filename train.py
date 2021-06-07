@@ -4,7 +4,8 @@ import torch
 from model import EARLIEST
 from dataset import SyntheticTimeSeries
 from torch.utils.data.sampler import SubsetRandomSampler
-from utils import *
+import utils
+from sklearn.metrics import accuracy_score
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
@@ -17,22 +18,28 @@ parser.add_argument("--nseries", type=int, default=500, help="Synthetic dataset 
 parser.add_argument("--nhid", type=int, default=50, help="Number of dimensions of the hidden state of EARLIEST")
 parser.add_argument("--nlayers", type=int, default=1, help="Number of layers for EARLIEST's RNN.")
 parser.add_argument("--rnn_cell", type=str, default="LSTM", help="Type of RNN to use in EARLIEST. Available: GRU, LSTM")
-parser.add_argument("--lambda", type=float, default=0.0, help="Penalty of waiting. This controls the emphasis on earliness: Larger values lead to earlier predictions.")
+parser.add_argument("--lam", type=float, default=0.0, help="Penalty of waiting. This controls the emphasis on earliness: Larger values lead to earlier predictions.")
 
 # Training hyperparameters
-parser.add_argument("--batch_size", type=int, help="Batch size.")
-parser.add_argument("--nepochs", type=int, help="Number of epochs.")
+parser.add_argument("--batch_size", type=int, default=10, help="Batch size.")
+parser.add_argument("--nepochs", type=int, default=50, help="Number of epochs.")
 parser.add_argument("--learning_rate", type=float, default="0.001", help="Learning rate.")
 parser.add_argument("--model_save_path", type=str, default="./saved_models/", help="Where to save the model once it is trained.")
+parser.add_argument("--random_seed", type=int, default="42", help="Set the random seed.")
 
 args = parser.parse_args()
 
-if name == "__main__":
-    model_save_path = args.model_save_path
+if __name__ == "__main__":
+    torch.manual_seed(args.random_seed)
+    np.random.seed(args.random_seed)
 
-    if args.dataset == "Synthetic":
+    model_save_path = args.model_save_path
+    utils.makedirs(model_save_path)
+    exponentials = utils.exponentialDecay(args.nepochs)
+
+    if args.dataset == "synthetic":
         data = SyntheticTimeSeries(args)
-    train_ix, val_ix, test_ix = utils.splitTrainingData(data.nseries)
+    train_ix, validation_ix, test_ix = utils.splitTrainingData(data.nseries)
 
     train_sampler = SubsetRandomSampler(train_ix)
     validation_sampler = SubsetRandomSampler(validation_ix)
@@ -47,7 +54,7 @@ if name == "__main__":
                                                     sampler=validation_sampler,
                                                     drop_last=True)
 
-    model = EARLIEST(ninp=data.N_FEATURES, nclasses=data.N_CLASSES, args) #nhid=HIDDEN_DIMENSION, rnn_type=CELL_TYPE, nlayers=N_LAYERS, lam=LAMBDA)
+    model = EARLIEST(ninp=data.N_FEATURES, nclasses=data.N_CLASSES, args=args) #nhid=HIDDEN_DIMENSION, rnn_type=CELL_TYPE, nlayers=N_LAYERS, lam=LAMBDA)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
 
@@ -57,8 +64,8 @@ if name == "__main__":
     training_predictions = []
     for epoch in range(args.nepochs):
         model._REWARDS = 0
-        model._r_sums = np.zeros(SEQ_LENGTH).reshape(1, -1)
-        model._r_counts = np.zeros(SEQ_LENGTH).reshape(1, -1)
+        model._r_sums = np.zeros(data.ntimesteps).reshape(1, -1)
+        model._r_counts = np.zeros(data.ntimesteps).reshape(1, -1)
         model._epsilon = exponentials[epoch]
         loss_sum = 0
         for i, (X, y) in enumerate(train_loader):
@@ -77,12 +84,16 @@ if name == "__main__":
             loss_sum += loss.item()
             optimizer.step()
 
+            if (i+1) % 10 == 0:
+                print ('Epoch [{}/{}], Batch [{}/{}], Loss: {:.4f}'.format(epoch+1, args.nepochs, i+1, len(train_loader), loss.item()))
+
         training_loss.append(np.round(loss_sum/len(train_loader), 3))
         scheduler.step()
-        if (i+1) % 10 == 0:
-            print ('Epoch [{}/{}], Batch [{}/{}], Loss: {:.4f}'.format(i+1, args.nepochs, i+1, len(train_loader), loss.item()))
 
     # --- Run model on validation data ---
+    validation_locations = []
+    validation_predictions = []
+    validation_labels = []
     for i, (X, y) in enumerate(validation_loader):
         X = torch.transpose(X, 0, 1)
         # --- Forward pass ---
@@ -91,6 +102,7 @@ if name == "__main__":
 
         validation_locations.append(halting_points)
         validation_predictions.append(predictions)
+        validation_labels.append(y)
 
     validation_predictions = torch.stack(validation_predictions).numpy().reshape(-1, 1)
     validation_labels = torch.stack(validation_labels).numpy().reshape(-1, 1)
