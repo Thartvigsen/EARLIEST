@@ -30,8 +30,7 @@ class EARLIEST(nn.Module):
         number of layers in the RNN.
 
     """
-    def __init__(self, ninp=1, nclasses=1, nhid=50, rnn_type="LSTM",
-                 nlayers=1, lam=0.0):
+    def __init__(self, ninp=1, nclasses=1, nhid=50, rnn_type="LSTM", nlayers=1, lam=0.0):
         super(EARLIEST, self).__init__()
 
         # --- Hyperparameters ---

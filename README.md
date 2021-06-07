@@ -10,6 +10,7 @@ N_FEATURES = 5 # Number of variables in your data (if we have clinical time seri
 N_CLASSES = 3 # Number of classes
 HIDDEN_DIM = 50 # Hidden dimension of the RNN
 CELL_TYPE = "LSTM" # Use an LSTM as the Recurrent Memory Cell.
+LAMBDA = 0.0 # Set lambda, the emphasis on earliness
 
 # --- defining data and model ---
 d = torch.rand((5, 1, N_FEATURES)) # A simple synthetic time series.
