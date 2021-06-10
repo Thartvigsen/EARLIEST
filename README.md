@@ -22,8 +22,7 @@ it once on the testing set. Then, it will print out the testing accuracy and the
 average halting time.
 
 ## General Example
-As an example of generally how one might integrate the EARLIEST model with
-existing pytorch code, consider the following example:
+Integrating the EARLIEST model with existing PyTorch code is easy:
 ```python
 from model import EARLIEST
 
