@@ -31,11 +31,13 @@ N_FEATURES = 5 # Number of variables in your data (if we have clinical time seri
 N_CLASSES = 3 # Number of classes
 HIDDEN_DIM = 50 # Hidden dimension of the RNN
 CELL_TYPE = "LSTM" # Use an LSTM as the Recurrent Memory Cell.
+NUM_TIMESTEPS = 10 # Number of timesteps in your input series (EARLIEST doesn't need this as input, this is just set to create synthetic series)
+BATCH_SIZE = 32 # Pick your batch size
 LAMBDA = 0.0 # Set lambda, the emphasis on earliness
 
 # --- defining data and model ---
-d = torch.rand((5, 1, N_FEATURES)) # A simple synthetic time series.
-labels = torch.tensor([0], dtype=torch.long) # A simple synthetic label.
+d = torch.rand((NUM_TIMESTEPS, BATCH_SIZE, N_FEATURES)) # A simple synthetic time series.
+labels = torch.randint(2, size=(BATCH_SIZE)) # Random synthetic labels.
 m = EARLIEST(N_FEATURES, N_CLASSES, HIDDEN_DIM, CELL_TYPE, lam=LAMBDA) # Initializing the model
 
 # --- inference ---

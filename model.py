@@ -66,8 +66,8 @@ class EARLIEST(nn.Module):
         if test: # Model chooses for itself during testing
             self.Controller._epsilon = 0.0
         else:
-            self.Controller._epsilon = self._epsilon # explore/exploit trade-off
-        T, B, V = X.shape
+            self.Controller._epsilon = self._epsilon # set explore/exploit trade-off
+        T, B, V = X.shape # Assume input is of shape (TIMESTEPS x BATCH x VARIABLES)
         baselines = [] # Predicted baselines
         actions = [] # Which classes to halt at each step
         log_pi = [] # Log probability of chosen actions
